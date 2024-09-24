@@ -5,6 +5,6 @@ export const config = {
     host: process.env.DB_HOST,
     database: process.env.DB_NAME,
     password: process.env.DB_PASSWORD,
-    port: 5432,
+    port: 9000,
     ssl: true,
 };

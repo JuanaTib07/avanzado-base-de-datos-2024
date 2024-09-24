@@ -1,10 +1,22 @@
 import PedidosService from "../services/pedidos.service.js";
+const { Client } = pkg;
+const client = new Client(config);
+await client.connect();
 
 const getPedidos = async (req, res) => {
-    // --------------- COMPLETAR ---------------
-    /*
-        Recordar que para cumplir con toda la funcionalidad deben:
 
+    const client = new Client(config);
+    try {
+        const [pedidos] = await client.query(
+            `SELECT * FROM "perdido" WHERE "id" = $1`
+        );
+        res.status(200).json(pedidos);
+    }
+    catch (e) {
+        res.status(500).json({ error: 'No se puede mostrar el pedido' });
+        await client.end();
+    }
+/*
             1. Utilizar el servicio de pedidos para obtener todos los pedidos
             2. Devolver un json con los pedidos (status 200)
             3. Devolver un mensaje de error si algo falló (status 500)
@@ -13,6 +25,33 @@ const getPedidos = async (req, res) => {
 };
 
 const getPedidosByUser = async (req, res) => {
+    const client = new Client(config);
+    await client.connect();
+
+    try {
+        const { rows } = await client.query(
+            "SELECT * FROM pedidos WHERE id = $1",
+            [id]
+        );
+
+        if (rows.length < 1) return [];
+
+        const result = await Promise.all(
+            rows.map(async (pedido) => {
+                const platos = await getPlatosByPedido(pedido.id);
+                return {
+                    ...pedido,
+                    platos,
+                };
+            })
+        );
+
+        await client.end();
+        return result;
+    } catch (error) {
+        await client.end();
+        throw error;
+    }
     // --------------- COMPLETAR ---------------
     /*
         Recordar que para cumplir con toda la funcionalidad deben:
@@ -26,6 +65,18 @@ const getPedidosByUser = async (req, res) => {
 };
 
 const getPedidoById = async (req, res) => {
+    const client = new Client(config);
+    try {
+        const {rows} = await client.query(
+            `SELECT * FROM "pedidos" WHERE "id" = $1`
+        );
+        res.status(200).json(pedidos);
+    }
+    catch (e) {
+        res.status(500).json({ error: 'No sepuede mostrar el pedido' });
+        await client.end();
+    }
+    
     // --------------- COMPLETAR ---------------
     /*
         Recordar que para cumplir con toda la funcionalidad deben:
@@ -39,6 +90,54 @@ const getPedidoById = async (req, res) => {
 };
 
 const createPedido = async (req, res) => {
+    const client = new Client(config);
+    await client.connect();
+
+    try {
+        // ACÁ SE PODRÍA HACER EN ETAPAS
+        // 1. Validar que los platos existan
+        // 2. Crear el pedido
+        // 3. Agregar los platos al pedido
+
+        // Así, no hace falta introducir el concepto de transacciones o rollback
+
+        const { rows } = await client.query(
+            "INSERT INTO pedidos (id_usuario, fecha, estado) VALUES ($1, $2, 'pendiente') RETURNING id",
+            [idUsuario, new Date()]
+        );
+
+        const idPedido = rows[0].id;
+
+        for (let plato of platos) {
+            const { rows } = await client.query(
+                "SELECT * FROM platos WHERE id = $1",
+                [plato.id]
+            );
+
+            if (rows.length < 1) {
+                await client.query("DELETE FROM pedidos WHERE id = $1", [
+                    idPedido,
+                ]);
+                await client.query(
+                    "DELETE FROM pedidos_platos WHERE id_pedido = $1",
+                    [idPedido]
+                );
+                throw new Error("Plato no encontrado");
+            }
+
+            await client.query(
+                "INSERT INTO pedidos_platos (id_pedido, id_plato, cantidad) VALUES ($1, $2, $3)",
+                [idPedido, plato.id, plato.cantidad]
+            );
+        }
+
+        await client.end();
+        return rows;
+    } catch (error) {
+        await client.end();
+        throw error;
+    }
+
     // --------------- COMPLETAR ---------------
     /*
         Recordar que para cumplir con toda la funcionalidad deben:
@@ -56,6 +155,30 @@ const createPedido = async (req, res) => {
 };
 
 const aceptarPedido = async (req, res) => {
+
+    const aceptarPedido = async (req, res) => {
+        const client = new Client(config);
+        await client.connect();
+    
+        try {
+            const pedidoId = req.params.id;
+            const pedido = await PedidosService.getById(pedidoId);
+            if (!pedido) {
+                return res.status(404).json({ error: 'Pedido no encontrado' });
+            }
+            if (pedido.estado !== 'pendiente') {
+                return res.status(400).json({ error: 'El pedido no está en estado pendiente' });
+            }
+            await PedidosService.updateEstado(pedidoId, 'aceptado');
+            res.status(200).json({ message: 'Pedido aceptado' });
+        } catch (error) {
+            res.status(500).json({ error: 'Error al aceptar el pedido' });
+        } finally {
+            await client.end();
+        }
+    };
+
+    
     // --------------- COMPLETAR ---------------
     /*
         Recordar que para cumplir con toda la funcionalidad deben:
@@ -72,6 +195,29 @@ const aceptarPedido = async (req, res) => {
 };
 
 const comenzarPedido = async (req, res) => {
+
+    const comenzarPedido = async (req, res) => {
+        const client = new Client(config);
+        await client.connect();
+    
+        try {
+            const pedidoId = req.params.id;
+            const pedido = await PedidosService.getById(pedidoId);
+            if (!pedido) {
+                return res.status(404).json({ error: 'Pedido no encontrado' });
+            }
+            if (pedido.estado !== 'aceptado') {
+                return res.status(400).json({ error: 'El pedido no está en estado aceptado' });
+            }
+            await PedidosService.updateEstado(pedidoId, 'en camino');
+            res.status(200).json({ message: 'Pedido en camino' });
+        } catch (error) {
+            res.status(500).json({ error: 'Error al comenzar el pedido' });
+        } finally {
+            await client.end();
+        }
+    };
+    
     // --------------- COMPLETAR ---------------
     /*
         Recordar que para cumplir con toda la funcionalidad deben:
@@ -88,6 +234,30 @@ const comenzarPedido = async (req, res) => {
 };
 
 const entregarPedido = async (req, res) => {
+
+    const entregarPedido = async (req, res) => {
+        const client = new Client(config);
+        await client.connect();
+    
+        try {
+            const pedidoId = req.params.id;
+            const pedido = await PedidosService.getById(pedidoId);
+            if (!pedido) {
+                return res.status(404).json({ error: 'Pedido no encontrado' });
+            }
+            if (pedido.estado !== 'en camino') {
+                return res.status(400).json({ error: 'El pedido no está en estado en camino' });
+            }
+            await PedidosService.updateEstado(pedidoId, 'entregado');
+            res.status(200).json({ message: 'Pedido entregado' });
+        } catch (error) {
+            res.status(500).json({ error: 'Error al entregar el pedido' });
+        } finally {
+            await client.end();
+        }
+    };
+
+    
     // --------------- COMPLETAR ---------------
     /*
         Recordar que para cumplir con toda la funcionalidad deben:
@@ -104,6 +274,23 @@ const entregarPedido = async (req, res) => {
 };
 
 const deletePedido = async (req, res) => {
+
+    const client = new Client(config);
+    await client.connect();
+
+    try {
+        const { rows } = await client.query(
+            "DELETE FROM pedidos WHERE id = $1",
+            [id]
+        );
+
+        await client.end();
+        return rows;
+    } catch (error) {
+        await client.end();
+        throw error;
+    }
+    
     // --------------- COMPLETAR ---------------
     /*
         Recordar que para cumplir con toda la funcionalidad deben:
