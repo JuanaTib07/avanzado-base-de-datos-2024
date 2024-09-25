@@ -1,3 +1,4 @@
+import pedidosService from "../services/pedidos.service.js";
 import PedidosService from "../services/pedidos.service.js";
 const { Client } = pkg;
 const client = new Client(config);
@@ -8,7 +9,7 @@ const getPedidos = async (req, res) => {
     const client = new Client(config);
     try {
         const [pedidos] = await client.query(
-            `SELECT * FROM "perdido" WHERE "id" = $1`
+            `SELECT * FROM "perdido" `
         );
         res.status(200).json(pedidos);
     }
@@ -25,43 +26,7 @@ const getPedidos = async (req, res) => {
 };
 
 const getPedidosByUser = async (req, res) => {
-    const client = new Client(config);
-    await client.connect();
-
-    try {
-        const { rows } = await client.query(
-            "SELECT * FROM pedidos WHERE id = $1",
-            [id]
-        );
-
-        if (rows.length < 1) return [];
-
-        const result = await Promise.all(
-            rows.map(async (pedido) => {
-                const platos = await getPlatosByPedido(pedido.id);
-                return {
-                    ...pedido,
-                    platos,
-                };
-            })
-        );
-
-        await client.end();
-        return result;
-    } catch (error) {
-        await client.end();
-        throw error;
-    }
-    // --------------- COMPLETAR ---------------
-    /*
-        Recordar que para cumplir con toda la funcionalidad deben:
-
-            1. Utilizar el servicio de pedidos para obtener los pedidos del usuario
-            2. Si el usuario no tiene pedidos, devolver un mensaje de error (status 404)
-            3. Si el usuario tiene pedidos, devolver un json con los pedidos (status 200)
-            4. Devolver un mensaje de error si algo falló (status 500)
-        
-    */
+    pedidosService.getPedidosByUser
 };
 
 const getPedidoById = async (req, res) => {
@@ -194,83 +159,30 @@ const aceptarPedido = async (req, res) => {
     */
 };
 
-const comenzarPedido = async (req, res) => {
 
-    const comenzarPedido = async (req, res) => {
-        const client = new Client(config);
-        await client.connect();
-    
-        try {
-            const pedidoId = req.params.id;
-            const pedido = await PedidosService.getById(pedidoId);
-            if (!pedido) {
-                return res.status(404).json({ error: 'Pedido no encontrado' });
-            }
-            if (pedido.estado !== 'aceptado') {
-                return res.status(400).json({ error: 'El pedido no está en estado aceptado' });
-            }
-            await PedidosService.updateEstado(pedidoId, 'en camino');
-            res.status(200).json({ message: 'Pedido en camino' });
-        } catch (error) {
-            res.status(500).json({ error: 'Error al comenzar el pedido' });
-        } finally {
-            await client.end();
-        }
-    };
-    
-    // --------------- COMPLETAR ---------------
-    /*
-        Recordar que para cumplir con toda la funcionalidad deben:
+const updatePedido = async (id, estado) => {
+    if (
+        estado !== "aceptado" &&
+        estado !== "en camino" &&
+        estado !== "entregado"
+    )
+        throw new Error("Estado inválido");
 
-            1. Utilizar el servicio de pedidos para obtener el pedido por id (utilizando el id recibido en los parámetros de la request)
-            2. Si el pedido no existe, devolver un mensaje de error (status 404)
-            3. Si el pedido existe, verificar que el pedido esté en estado "aceptado"
-            4. Si el pedido no está en estado "aceptado", devolver un mensaje de error (status 400)
-            5. Si el pedido está en estado "aceptado", actualizar el estado del pedido a "en camino"
-            6. Devolver un mensaje de éxito (status 200)
-            7. Devolver un mensaje de error si algo falló (status 500)
-        
-    */
-};
+    const client = new Client(config);
+    await client.connect();
 
-const entregarPedido = async (req, res) => {
+    try {
+        const { rows } = await client.query(
+            "UPDATE pedidos SET estado = $1 WHERE id = $2",
+            [estado, id]
+        );
 
-    const entregarPedido = async (req, res) => {
-        const client = new Client(config);
-        await client.connect();
-    
-        try {
-            const pedidoId = req.params.id;
-            const pedido = await PedidosService.getById(pedidoId);
-            if (!pedido) {
-                return res.status(404).json({ error: 'Pedido no encontrado' });
-            }
-            if (pedido.estado !== 'en camino') {
-                return res.status(400).json({ error: 'El pedido no está en estado en camino' });
-            }
-            await PedidosService.updateEstado(pedidoId, 'entregado');
-            res.status(200).json({ message: 'Pedido entregado' });
-        } catch (error) {
-            res.status(500).json({ error: 'Error al entregar el pedido' });
-        } finally {
-            await client.end();
-        }
-    };
-
-    
-    // --------------- COMPLETAR ---------------
-    /*
-        Recordar que para cumplir con toda la funcionalidad deben:
-
-            1. Utilizar el servicio de pedidos para obtener el pedido por id (utilizando el id recibido en los parámetros de la request)
-            2. Si el pedido no existe, devolver un mensaje de error (status 404)
-            3. Si el pedido existe, verificar que el pedido esté en estado "en camino"
-            4. Si el pedido no está en estado "en camino", devolver un mensaje de error (status 400)
-            5. Si el pedido está en estado "en camino", actualizar el estado del pedido a "entregado"
-            6. Devolver un mensaje de éxito (status 200)
-            7. Devolver un mensaje de error si algo falló (status 500)
-        
-    */
+        await client.end();
+        return rows;
+    } catch (error) {
+        await client.end();
+        throw error;
+    }
 };
 
 const deletePedido = async (req, res) => {
@@ -310,7 +222,7 @@ export default {
     getPedidoById,
     createPedido,
     aceptarPedido,
-    comenzarPedido,
+    updatePedido,
     entregarPedido,
     deletePedido,
 };
